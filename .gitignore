@@ -1,0 +1,6 @@
+.pio
+.vscode
+managed_components
+.idea
+cmake-build-debug
+*.lock

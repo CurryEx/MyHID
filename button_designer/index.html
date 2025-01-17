@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+    <meta charset="UTF-8">
+    <title>按钮设计工具</title>
+    <style>
+        #output {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+<div id="container">
+    <img id="bgImage" src="./bg.png" alt="Background Image" style="display: none;">
+    <canvas id="canvas"></canvas>
+</div>
+<span>c++输出</span>
+<textarea id="output" rows="10" cols="50" readonly></textarea>
+<span>导出/导入</span>
+<textarea id="input" rows="10" cols="50" ></textarea>
+<button id="dump">转成json</button>
+<button id="load">从json导入</button>
+<button id="copy">复制</button>
+
+<script>
+    const container = document.getElementById('container');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const bgImage = document.getElementById('bgImage');
+    const output = document.getElementById('output');
+    const input = document.getElementById('input');
+    const load = document.getElementById('load');
+    const dump = document.getElementById('dump');
+    const copy = document.getElementById('copy');
+    let points = [
+        { x: -999, y: -999 }
+    ];
+    // 按下load后加载input的内容序列化到points
+    load.addEventListener('click', () => {
+        const inputText = input.value;
+        let json = JSON.parse(inputText);
+        points = json;
+        reprint();
+    });
+    // 按下dump后将points序列化到output
+    dump.addEventListener('click', () => {
+        input.value = JSON.stringify(points);
+    });
+    // 按下copy后将output的内容复制到剪贴板
+    copy.addEventListener('click', () => {
+        navigator.clipboard.writeText(output.value).then(() => {
+            alert('已复制到剪贴板');
+        });
+    });
+
+    bgImage.onload = () => {
+        const windowHeight = window.innerHeight;
+        const windowWidth = window.innerWidth;
+        const aspectRatio = bgImage.naturalWidth / bgImage.naturalHeight;
+
+        let canvasWidth, canvasHeight;
+
+        if (bgImage.naturalHeight > windowHeight * 0.7) {
+            canvasHeight = Math.floor(windowHeight * 0.7);
+            canvasWidth = Math.floor(canvasHeight * aspectRatio);
+        } else {
+            canvasWidth = Math.floor(windowWidth * 0.7);
+            canvasHeight = Math.floor(canvasWidth / aspectRatio);
+        }
+
+        container.style.width = `${canvasWidth}px`;
+        container.style.height = `${canvasHeight}px`;
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+
+        ctx.drawImage(bgImage, 0, 0, canvasWidth, canvasHeight);
+    };
+
+    const rect = canvas.getBoundingClientRect();
+
+    const reprint = () =>{
+        output.value = '';
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+        let shapeIndex = 0;
+        let currentPoint = 0;
+
+        for(let i = 0; i < points.length; i++)
+        {
+            if(points[i].x === -999)
+            {
+                if(i !== 0)
+                {
+                    output.value += `shapes->push_back(shape${shapeIndex});\n`;
+                }
+                shapeIndex++;
+                output.value += `Shape shape${shapeIndex};\n`;
+                output.value += `shape${shapeIndex}.data = '\\x${(shapeIndex - 1).toString(16).padStart(2, '0')}';\n`;
+                currentPoint = 0;
+                continue;
+            }
+            const p1 = points[i];
+            ctx.beginPath();
+            ctx.arc(p1.x * canvas.width / 32767, p1.y * canvas.height / 32767, 5, 0, 2 * Math.PI);
+            ctx.fillStyle = 'red';
+            ctx.fill();
+            output.value += `shape${shapeIndex}.points[${currentPoint}] = { x: ${p1.x}, y: ${p1.y} };\n`;
+            currentPoint++;
+
+            if(i > 1 && points[i - 1].x !== -999)
+            {
+                const p2 = points[i - 1];
+                ctx.beginPath();
+                ctx.moveTo(p1.x * canvas.width / 32767, p1.y * canvas.height / 32767);
+                ctx.lineTo(p2.x * canvas.width / 32767, p2.y * canvas.height / 32767);
+                ctx.strokeStyle = 'red';
+                ctx.stroke();
+            }
+        }
+
+    }
+
+    canvas.addEventListener('click', (event) => {
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        const mappedX = Math.round(32767 * (x / canvas.width));
+        const mappedY = Math.round(32767 * (y / canvas.height));
+
+        points.push({ x: mappedX, y: mappedY });
+        reprint();
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'n' || event.key === 'N') {
+            points.push({ x: -999, y: -999 });
+            reprint();
+        } else if (event.key === 'd' || event.key === 'D') {
+            if(points.length > 1)
+            {
+                points.pop();
+                reprint();
+            }
+        }
+    });
+</script>
+</body>
+</html>
